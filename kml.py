@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
 """
-Create a KMZ from photos. Each placemark is numbered (1, 2, 3, ...)
-and shows an HTML description with an embedded KMZ image path plus extracted EXIF details.
-
-This version:
-- Plots EVERY image (even if GPS is missing).
-- Uses tiny "jitter" so identical/missing coords never merge into one pin.
-- Uses <img style="max-width:500px;" src="files/<image>"> inside the balloon.
 
 Usage:
-  python photos_to_kmz.py /path/to/photos output.kmz --name "My Photo Pins"
+  python photos_to_kmz.py "/path/to/photos output.kmz" "My Photo Pins"
 
 Requires: Pillow (PIL)
   pip install Pillow
@@ -27,9 +20,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 
 from PIL import Image, ExifTags
 
-# ---- EXIF helpers -----------------------------------------------------------
 
-# Build a map from EXIF tag id to human name
 EXIF_TAGS = {v: k for k, v in ExifTags.TAGS.items()}
 GPS_TAGS  = {v: k for k, v in ExifTags.GPSTAGS.items()}
 
@@ -149,7 +140,6 @@ def extract_exif(img_path: Path):
         "iso": str(iso) if iso is not None else None,
     }
 
-# ---- KML helpers ------------------------------------------------------------
 
 KML_NS = "http://www.opengis.net/kml/2.2"
 GX_NS  = "http://www.google.com/kml/ext/2.2"
@@ -224,23 +214,6 @@ def build_balloon_html(kmz_rel_path: str, name: str, meta: dict, has_gps: bool):
           {details_html}
         </div>
         ]]>
-    """
-    return textwrap.dedent(body).strip()
-
-def add_placemark(folder, name, lat, lon, html_description, when=None, style_url="#photo-pin"):
-    pm = kml_sub(folder, "Placemark")
-    kml_sub(pm, "name", name)
-    if style_url:
-        kml_sub(pm, "styleUrl", style_url)
-    kml_sub(pm, "description", html_description)
-    if when:
-        time_elem = kml_sub(pm, "TimeStamp")
-        kml_sub(time_elem, "when", when.strftime("%Y-%m-%dT%H:%M:%S"))
-    point = kml_sub(pm, "Point")
-    kml_sub(point, "coordinates", f"{lon:.8f},{lat:.8f},0")
-    return pm
-
-# ---- Jitter utilities so pins never merge -----------------------------------
 
 def meters_to_deg_lat(meters: float) -> float:
     # ~111,320 meters per degree latitude
@@ -271,7 +244,6 @@ def offset_duplicate(lat: float, lon: float, dup_index: int) -> tuple[float, flo
     dlon = meters_to_deg_lon(d_east, lat)
     return lat + dlat, lon + dlon
 
-# ---- Main pipeline ----------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="Build a KMZ of geotagged photos.")
@@ -306,15 +278,14 @@ def main():
 
     pin_idx = 1  # sequential numbering for pins
 
-    # Track occurrences of identical coordinates to offset duplicates.
-    # Group "identical" at 7 decimals (~1 cm).
+
     coord_counts: dict[tuple[float, float], int] = {}
 
     # Anchor for non-GPS images: first geotagged coordinate if available
     anchor_latlon = None
     non_gps_counter = 0  # to jitter non-GPS pins around anchor (or 0,0)
 
-    # First pass: find first geotagged coordinate to use as anchor for non-GPS images
+
     for p in img_paths:
         meta = extract_exif(p)
         lat, lon = meta.get("lat"), meta.get("lon")
@@ -378,3 +349,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
